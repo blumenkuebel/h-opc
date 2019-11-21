@@ -56,7 +56,7 @@ namespace Hylasoft.Opc.Ua
     /// <summary>
     /// OPC Foundation underlying session object
     /// </summary>
-    protected Session Session
+    public Session Session
     {
       get
       {
@@ -336,50 +336,164 @@ namespace Hylasoft.Opc.Ua
     /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback</param>
     public void Monitor<T>(string tag, Action<ReadEvent<T>, Action> callback)
     {
-      var node = FindNode(tag);
+        var node = FindNode(tag);
 
-      var sub = new Subscription
-      {
-        PublishingInterval = _options.DefaultMonitorInterval,
-        PublishingEnabled = true,
-        LifetimeCount = _options.SubscriptionLifetimeCount,
-        KeepAliveCount = _options.SubscriptionKeepAliveCount,
-        DisplayName = tag,
-        Priority = byte.MaxValue
-      };
-
-      var item = new MonitoredItem
-      {
-        StartNodeId = node.NodeId,
-        AttributeId = Attributes.Value,
-        DisplayName = tag,
-        SamplingInterval = _options.DefaultMonitorInterval
-      };
-      sub.AddItem(item);
-      _session.AddSubscription(sub);
-      sub.Create();
-      sub.ApplyChanges();
-
-      item.Notification += (monitoredItem, args) =>
-      {
-        var p = (MonitoredItemNotification)args.NotificationValue;
-        var t = p.Value.WrappedValue.Value;
-        Action unsubscribe = () =>
+        var sub = new Subscription
         {
-          sub.RemoveItems(sub.MonitoredItems);
-          sub.Delete(true);
-          _session.RemoveSubscription(sub);
-          sub.Dispose();
+            PublishingInterval = _options.DefaultMonitorInterval,
+            PublishingEnabled = true,
+            LifetimeCount = _options.SubscriptionLifetimeCount,
+            KeepAliveCount = _options.SubscriptionKeepAliveCount,
+            DisplayName = tag,
+            Priority = byte.MaxValue
         };
 
-        var monitorEvent = new ReadEvent<T>();
-        monitorEvent.Value = (T)t;
-        monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
-        monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
-        if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
-        if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
-        callback(monitorEvent, unsubscribe);
-      };
+        var item = new MonitoredItem
+        {
+            StartNodeId = node.NodeId,
+            AttributeId = Attributes.Value,
+            DisplayName = tag,
+            SamplingInterval = _options.DefaultMonitorInterval
+        };
+        sub.AddItem(item);
+        _session.AddSubscription(sub);
+        sub.Create();
+        sub.ApplyChanges();
+
+        item.Notification += (monitoredItem, args) =>
+        {
+            var p = (MonitoredItemNotification)args.NotificationValue;
+            var t = p.Value.WrappedValue.Value;
+            Action unsubscribe = () =>
+        {
+                sub.RemoveItems(sub.MonitoredItems);
+                sub.Delete(true);
+                _session.RemoveSubscription(sub);
+                sub.Dispose();
+            };
+
+            var monitorEvent = new ReadEvent<T>();
+            monitorEvent.Value = (T)t;
+            monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
+            monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
+            if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
+            if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
+            callback(monitorEvent, unsubscribe);
+        };
+    }
+
+    /// <summary>
+    /// Monitor the specified tag for changes
+    /// </summary>
+    /// <typeparam name="T">the type of tag to monitor</typeparam>
+    /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+    /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+    /// <param name="callback">the callback to execute when the value is changed.
+    /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback, 
+    /// the third is the node for indetification reasons</param>
+    public void Monitor<T>(string tag, Action<ReadEvent<T>, Action, UaNode> callback)
+    {
+        var node = FindNode(tag);
+
+        var sub = new Subscription
+        {
+            PublishingInterval = _options.DefaultMonitorInterval,
+            PublishingEnabled = true,
+            LifetimeCount = _options.SubscriptionLifetimeCount,
+            KeepAliveCount = _options.SubscriptionKeepAliveCount,
+            DisplayName = tag,
+            Priority = byte.MaxValue
+        };
+
+        var item = new MonitoredItem
+        {
+            StartNodeId = node.NodeId,
+            AttributeId = Attributes.Value,
+            DisplayName = tag,
+            SamplingInterval = _options.DefaultMonitorInterval
+        };
+        sub.AddItem(item);
+        _session.AddSubscription(sub);
+        sub.Create();
+        sub.ApplyChanges();
+
+        item.Notification += (monitoredItem, args) =>
+        {
+            var p = (MonitoredItemNotification)args.NotificationValue;
+            var t = p.Value.WrappedValue.Value;
+            Action unsubscribe = () =>
+            {
+                sub.RemoveItems(sub.MonitoredItems);
+                sub.Delete(true);
+                _session.RemoveSubscription(sub);
+                sub.Dispose();
+            };
+
+            var monitorEvent = new ReadEvent<T>();
+            monitorEvent.Value = (T)t;
+            monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
+            monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
+            if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
+            if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
+            callback(monitorEvent, unsubscribe, node);
+        };
+    }
+
+    /// <summary>
+    /// Monitor the specified tag for changes
+    /// </summary>
+    /// <typeparam name="T">the type of tag to monitor</typeparam>
+    /// <param name="tag">The fully-qualified identifier of the tag. You can specify a subfolder by using a comma delimited name.
+    /// E.g: the tag `foo.bar` monitors the tag `bar` on the folder `foo`</param>
+    /// <param name="callback">the callback to execute when the value is changed.
+    /// The first parameter is a MonitorEvent object which represents the data point, the second is an `unsubscribe` function to unsubscribe the callback, 
+    /// the third is the node for indetification reasons, the fourth is the sender (this)</param>
+    public void Monitor<T>(string tag, Action<ReadEvent<T>, Action, UaNode, UaClient> callback)
+    {
+        var node = FindNode(tag);
+
+        var sub = new Subscription
+        {
+            PublishingInterval = _options.DefaultMonitorInterval,
+            PublishingEnabled = true,
+            LifetimeCount = _options.SubscriptionLifetimeCount,
+            KeepAliveCount = _options.SubscriptionKeepAliveCount,
+            DisplayName = tag,
+            Priority = byte.MaxValue
+        };
+
+        var item = new MonitoredItem
+        {
+            StartNodeId = node.NodeId,
+            AttributeId = Attributes.Value,
+            DisplayName = tag,
+            SamplingInterval = _options.DefaultMonitorInterval
+        };
+        sub.AddItem(item);
+        _session.AddSubscription(sub);
+        sub.Create();
+        sub.ApplyChanges();
+
+        item.Notification += (monitoredItem, args) =>
+        {
+            var p = (MonitoredItemNotification)args.NotificationValue;
+            var t = p.Value.WrappedValue.Value;
+            Action unsubscribe = () =>
+            {
+                sub.RemoveItems(sub.MonitoredItems);
+                sub.Delete(true);
+                _session.RemoveSubscription(sub);
+                sub.Dispose();
+            };
+
+            var monitorEvent = new ReadEvent<T>();
+            monitorEvent.Value = (T)t;
+            monitorEvent.SourceTimestamp = p.Value.SourceTimestamp;
+            monitorEvent.ServerTimestamp = p.Value.ServerTimestamp;
+            if (StatusCode.IsGood(p.Value.StatusCode)) monitorEvent.Quality = Quality.Good;
+            if (StatusCode.IsBad(p.Value.StatusCode)) monitorEvent.Quality = Quality.Bad;
+            callback(monitorEvent, unsubscribe, node, this);
+        };
     }
 
     /// <summary>
